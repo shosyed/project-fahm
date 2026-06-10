@@ -18,8 +18,15 @@ async function _init(): Promise<Database> {
   if (!response.ok) {
     throw new Error(`quran.db.gz fetch failed: ${response.status} ${response.statusText}`);
   }
-  // Decompress in-browser — quran.db.gz is ~7.6 MB vs 31 MB uncompressed
-  const decompressed = response.body!.pipeThrough(new DecompressionStream('gzip'));
-  const buf = await new Response(decompressed).arrayBuffer();
+  // Dev servers (Vite) set Content-Encoding: gzip, so the browser auto-decompresses
+  // the response body before JS sees it. Production (Cloudflare Pages) serves the raw
+  // gzip bytes with no Content-Encoding, so we decompress manually. Handle both.
+  let buf: ArrayBuffer;
+  if (response.headers.get('content-encoding')?.includes('gzip')) {
+    buf = await response.arrayBuffer(); // already decompressed by browser
+  } else {
+    const decompressed = response.body!.pipeThrough(new DecompressionStream('gzip'));
+    buf = await new Response(decompressed).arrayBuffer();
+  }
   return new SQL.Database(new Uint8Array(buf));
 }
