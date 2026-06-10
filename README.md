@@ -30,9 +30,40 @@ npm install
 npm run dev
 ```
 
+## Deployment
+
+The app is hosted on [Cloudflare Pages](https://pages.cloudflare.com/). Pushes to `main` trigger an automatic build and deploy.
+
+### One-time dashboard setup (manual)
+1. Create a Cloudflare Pages project connected to `shosyed/project-fahm`
+2. Set **build command**: `npm run build`
+3. Set **output directory**: `dist`
+4. Node version is read from `.nvmrc` automatically — no extra config needed
+
+The `public/_headers` file is copied to `dist/_headers` by Vite, activating the required `Cross-Origin-Opener-Policy`, `Cross-Origin-Embedder-Policy`, and `Cross-Origin-Resource-Policy` headers (needed for WebGPU/SharedArrayBuffer used by the in-browser AI).
+
+### What Cloudflare Pages builds
+- `npm install` — installs all dependencies including `sql.js` and `@mlc-ai/web-llm`
+- `npm run build` — TypeScript compile + Vite build; `viteStaticCopy` copies `sql-wasm.wasm` from `node_modules/sql.js/dist/` to `dist/`
+- `quran.db` is committed to the repo and copied to `dist/` by Vite automatically
+
 ## Building the data assets
 
-Data assets (quran.db, embeddings.bin) are generated offline and not committed to this repo. See `scripts/README.md` for instructions.
+`quran.db` is committed to the repository at `public/quran.db` and does not need to be regenerated for a standard deploy.
+
+Only re-run the pipeline if you want to update the Quranic data (e.g., after a new dataset version is available):
+
+```bash
+cd scripts
+python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+python build_db.py        # rebuilds ayahs, translations, tafsirs
+python build_crossrefs.py # rebuilds similar_ayahs, topics, themes
+python verify_fidelity.py # spot-checks fidelity
+# Then commit the updated public/quran.db
+```
+
+See `scripts/README.md` for full pipeline documentation.
 
 ## License
 
