@@ -15,7 +15,9 @@ Usage:
 """
 
 import argparse
+import gzip
 import re
+import shutil
 import sqlite3
 import sys
 from datetime import date, timezone, datetime
@@ -397,6 +399,13 @@ def main() -> None:
 
     conn.close()
     print(f"\nDatabase written to: {output_path}")
+
+    # Compress to .gz for deployment (Cloudflare Pages 25 MB file limit)
+    gz_path = output_path.with_suffix(output_path.suffix + '.gz')
+    with open(output_path, 'rb') as f_in, gzip.open(gz_path, 'wb', compresslevel=9) as f_out:
+        shutil.copyfileobj(f_in, f_out)
+    gz_mb = gz_path.stat().st_size / 1_048_576
+    print(f"Compressed to:        {gz_path}  ({gz_mb:.1f} MB)")
 
     if args.limit is None:
         expected = 6236
