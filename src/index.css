@@ -5,6 +5,14 @@
 body {
   margin: 0;
   padding: 0;
-  background: #fff;
+  background: #f8f8f7;
   color: #1a1a1a;
+}
+
+#root {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem;
+  min-height: 100vh;
+  background: #fff;
 }

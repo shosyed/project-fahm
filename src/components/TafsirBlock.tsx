@@ -6,6 +6,13 @@ const LABELS: Record<string, string> = {
   ibnkathir: 'Tafsir Ibn Kathir',
 }
 
+// Some tafsirs (e.g. Ibn Kathir from api.quran.com) are stored with HTML markup.
+// Strip tags and decode entities so plain Arabic text is displayed.
+function stripHtml(raw: string): string {
+  const doc = new DOMParser().parseFromString(raw, 'text/html')
+  return doc.body.textContent ?? raw
+}
+
 interface Props {
   tafsirKey: string
   text: string
@@ -16,13 +23,13 @@ interface Props {
 export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
   const { state, summarize } = useSummarize()
 
+  const plainText = stripHtml(text)
   const citation = buildCitation(tafsirKey, surah, ayah)
+  const isActive = state.status !== 'idle'
 
   function handleClick() {
-    summarize(text, tafsirKey, surah, ayah)
+    summarize(plainText, tafsirKey, surah, ayah)
   }
-
-  const isActive = state.status !== 'idle'
 
   return (
     <details className={styles.details}>
@@ -30,13 +37,32 @@ export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
         {LABELS[tafsirKey] ?? tafsirKey}
       </summary>
       <div className={styles.body}>
-        <p
-          className={`${styles.arabicText}${isActive ? ` ${styles.verbatimHighlight}` : ''}`}
-          dir="rtl"
-          lang="ar"
-        >
-          {text}
-        </p>
+
+        {/* AI button at the top */}
+        <div className={styles.aiRow}>
+          <button
+            className={styles.aiBtn}
+            onClick={handleClick}
+            disabled={state.status === 'downloading' || state.status === 'generating'}
+          >
+            {state.status === 'idle' && '✦ Summarize in English (AI)'}
+            {state.status === 'downloading' && `Downloading AI model… ${state.progress}%`}
+            {state.status === 'generating' && 'Generating summary…'}
+            {state.status === 'done' && '✦ Re-summarize'}
+            {state.status === 'error' && 'Retry'}
+          </button>
+          {state.status === 'idle' && (
+            <span className={styles.aiHint}>
+              Runs locally on your device · first use downloads ~2 GB model
+            </span>
+          )}
+        </div>
+
+        {state.status === 'downloading' && (
+          <div className={styles.progressBar}>
+            <div className={styles.progressFill} style={{ width: `${state.progress}%` }} />
+          </div>
+        )}
 
         {state.status !== 'idle' && (
           <div className={styles.summaryBox}>
@@ -52,24 +78,15 @@ export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
           </div>
         )}
 
-        {state.status === 'downloading' && (
-          <div className={styles.progressBar}>
-            <div className={styles.progressFill} style={{ width: `${state.progress}%` }} />
-          </div>
-        )}
-
-        <button
-          className={styles.aiBtn}
-          onClick={handleClick}
-          disabled={state.status === 'downloading' || state.status === 'generating'}
-          title={state.status === 'idle' ? 'Summarize this tafsir using an on-device AI model' : undefined}
+        {/* Verbatim Arabic tafsir text — always shown; highlighted when summary is active */}
+        <p
+          className={`${styles.arabicText}${isActive ? ` ${styles.verbatimHighlight}` : ''}`}
+          dir="rtl"
+          lang="ar"
         >
-          {state.status === 'idle' && 'Summarize (AI)'}
-          {state.status === 'downloading' && `Downloading model… ${state.progress}%`}
-          {state.status === 'generating' && 'Generating…'}
-          {state.status === 'done' && 'Re-summarize'}
-          {state.status === 'error' && 'Retry'}
-        </button>
+          {plainText}
+        </p>
+
       </div>
     </details>
   )
