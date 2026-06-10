@@ -14,10 +14,12 @@ async function _init(): Promise<Database> {
   const SQL = await initSqlJs({
     locateFile: () => '/sql-wasm.wasm',
   });
-  const response = await fetch('/quran.db');
+  const response = await fetch('/quran.db.gz');
   if (!response.ok) {
-    throw new Error(`quran.db fetch failed: ${response.status} ${response.statusText}`);
+    throw new Error(`quran.db.gz fetch failed: ${response.status} ${response.statusText}`);
   }
-  const buf = await response.arrayBuffer();
+  // Decompress in-browser — quran.db.gz is ~7.6 MB vs 31 MB uncompressed
+  const decompressed = response.body!.pipeThrough(new DecompressionStream('gzip'));
+  const buf = await new Response(decompressed).arrayBuffer();
   return new SQL.Database(new Uint8Array(buf));
 }
