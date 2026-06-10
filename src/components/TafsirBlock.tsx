@@ -1,12 +1,7 @@
-import { useSummarize } from '../ai/index.ts'
+import { useSummarize, buildCitation } from '../ai/index.ts'
 import styles from './TafsirBlock.module.css'
 
 const LABELS: Record<string, string> = {
-  jalalayn: 'Tafsir al-Jalalayn',
-  ibnkathir: 'Tafsir Ibn Kathir',
-}
-
-const CITATION_NAMES: Record<string, string> = {
   jalalayn: 'Tafsir al-Jalalayn',
   ibnkathir: 'Tafsir Ibn Kathir',
 }
@@ -21,8 +16,7 @@ interface Props {
 export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
   const { state, summarize } = useSummarize()
 
-  const citationName = CITATION_NAMES[tafsirKey] ?? tafsirKey
-  const citation = `[Source: ${citationName}, Surah ${surah}:${ayah}]`
+  const citation = buildCitation(tafsirKey, surah, ayah)
 
   function handleClick() {
     summarize(text, tafsirKey, surah, ayah)
