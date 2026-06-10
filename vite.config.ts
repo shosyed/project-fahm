@@ -23,4 +23,7 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ['@mlc-ai/web-llm'],
   },
+  build: {
+    chunkSizeWarningLimit: 10000,
+  },
 })
