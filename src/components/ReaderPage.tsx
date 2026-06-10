@@ -7,6 +7,7 @@ import { SurahHeader } from './SurahHeader.tsx'
 import { ArabicDisplay } from './ArabicDisplay.tsx'
 import { TranslationList } from './TranslationList.tsx'
 import { TafsirSection } from './TafsirSection.tsx'
+import { RelatedVersesPanel } from './RelatedVersesPanel.tsx'
 import styles from './ReaderPage.module.css'
 
 export function ReaderPage() {
@@ -38,6 +39,7 @@ export function ReaderPage() {
           <ArabicDisplay arabic={record.arabic} />
           <TranslationList translations={record.translations} />
           <TafsirSection tafsirs={record.tafsirs} />
+          <RelatedVersesPanel surah={surah} ayah={ayah} onNavigate={onNavigate} />
         </>
       ) : (
         <div className={styles.ayahLoading}>Loading verse…</div>

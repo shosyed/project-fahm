@@ -1,0 +1,95 @@
+.details {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.summary {
+  padding: 0.75rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #374151;
+  cursor: pointer;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  user-select: none;
+}
+
+.summary::-webkit-details-marker {
+  display: none;
+}
+
+.summary::after {
+  content: '▸';
+  color: #9ca3af;
+  font-size: 0.7rem;
+  margin-left: auto;
+  transition: transform 0.15s;
+}
+
+details[open] .summary::after {
+  transform: rotate(90deg);
+}
+
+.summary:hover {
+  background: #f9fafb;
+}
+
+.count {
+  font-weight: 400;
+  color: #9ca3af;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border-top: 1px solid #e5e7eb;
+  background: #fafafa;
+}
+
+.item {
+  border-bottom: 1px solid #f3f4f6;
+}
+
+.item:last-child {
+  border-bottom: none;
+}
+
+.refBtn {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.6rem 1rem;
+  background: none;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-size: 0.875rem;
+}
+
+.refBtn:hover {
+  background: #f3f4f6;
+}
+
+.ref {
+  font-weight: 600;
+  color: #1d4ed8;
+  min-width: 60px;
+  font-family: monospace;
+}
+
+.surahName {
+  color: #4b5563;
+}
+
+.more {
+  padding: 0.5rem 1rem;
+  font-size: 0.8rem;
+  color: #9ca3af;
+  font-style: italic;
+}
