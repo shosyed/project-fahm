@@ -38,7 +38,7 @@ export function ReaderPage() {
         <>
           <ArabicDisplay arabic={record.arabic} />
           <TranslationList translations={record.translations} />
-          <TafsirSection tafsirs={record.tafsirs} />
+          <TafsirSection tafsirs={record.tafsirs} surah={surah} ayah={ayah} />
           <RelatedVersesPanel surah={surah} ayah={ayah} onNavigate={onNavigate} />
         </>
       ) : (
