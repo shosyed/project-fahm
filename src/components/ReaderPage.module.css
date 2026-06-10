@@ -1,0 +1,11 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.ayahLoading {
+  text-align: center;
+  color: #9ca3af;
+  padding: 3rem 0;
+}
