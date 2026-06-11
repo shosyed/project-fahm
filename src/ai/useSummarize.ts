@@ -61,10 +61,23 @@ export function useSummarize(): SummarizeControls {
       }
     })
 
+    // Truncate each entry to fit within the model's context window.
+    // Arabic tokenizes at ~2× density vs English, so Arabic entries get a tighter budget.
+    // With context_window_size: 8192 and ~350 tokens for the system prompt, we have
+    // roughly 7800 tokens available. These limits keep total well inside that.
+    const CHAR_LIMIT: Record<TafsirEntry['language'], number> = { ar: 2500, en: 5000 }
+    const truncated = entries.map(e => {
+      const limit = CHAR_LIMIT[e.language]
+      const text = e.text.length > limit
+        ? e.text.slice(0, limit) + '\n[… text truncated to fit model context …]'
+        : e.text
+      return { ...e, text }
+    })
+
     // Build combined text with source label and language for each entry.
     // Arabic and English versions of the same tafsir are grouped together so
     // the model can compare them for translation differences.
-    const combinedText = entries
+    const combinedText = truncated
       .map(e => {
         const name = CITATION_NAMES[e.tafsirKey] ?? e.tafsirKey
         const langLabel = e.language === 'ar' ? 'Arabic original' : 'English translation'
