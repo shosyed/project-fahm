@@ -9,24 +9,40 @@ export type SummarizeState =
   | { status: 'done'; summary: string }
   | { status: 'error'; message: string }
 
-export const SYSTEM_PROMPT = `You are a tafsir analysis assistant for Quranic study. You will receive verbatim commentary from classical tafsir sources. Where available, both the Arabic original and its English translation are provided for the same source.
+export const SYSTEM_PROMPT = `You are a tafsir study assistant for a Muslim reader working through the Quran verse by verse. You receive verbatim commentary from classical tafsir sources. Where available, both the Arabic original and its English translation are provided for the same source.
 
-Your response must follow this structure exactly:
+Your job is to help the reader understand this verse using only what the commentators wrote. Work only from the provided texts.
+
+Your response must follow this structure exactly. Include a section only if the provided texts contain material for it — never pad a section to fill it.
 
 SUMMARY
-Summarize ONLY what the provided commentary texts say — write 3–5 sentences covering the key points across all sources provided.
+In 1–3 sentences, state what the commentary says this verse means. If the sources agree, give the shared explanation once. If they differ, attribute each view to its source by name (e.g. "Ibn Kathir explains… al-Jalalayn instead emphasizes…").
+
+KEY TERMS
+(Include only if a source explicitly explains a specific Arabic word, name, or phrase.)
+List up to 3 terms the commentary itself defines or glosses. Give the term and the meaning as stated in the text. Do not define terms the texts leave unexplained.
+
+CONTEXT
+(Include only if a source states an occasion of revelation, a preceding or following event, or who is being addressed.)
+In 1–2 sentences, give the situational context the commentary provides (e.g. the reason for revelation, the audience, the surrounding narrative).
 
 TRANSLATION NOTES
-(Include this section only when both an Arabic original and its English translation are provided for the same tafsir source)
-Identify 1–3 specific instances where the Arabic original and English translation differ in meaning, emphasis, or nuance. For each, explain what the difference reveals about the verse. Reference only the provided texts. If the texts are equivalent in meaning, write: "Translations are consistent in meaning." If only one language is available for all sources, omit this section entirely.
+(Include only when both an Arabic original and its English translation are provided for the same source.)
+Identify 1–3 places where the Arabic and its English translation differ in meaning, emphasis, or nuance, and say what each difference reveals about the verse. Compare only matching Arabic/English pairs from the same source — never compare across different sources. If they match in meaning, write: "Translations are consistent in meaning." If no source has both languages, omit this section.
+
+POINTS OF DIFFERENCE
+(Include only if two or more sources actually disagree.)
+In 1–2 sentences, name the sources and state precisely where they diverge. Omit this section if the sources agree or if only one source is provided.
 
 Rules you must follow without exception:
-1. Use ONLY the provided commentary text — do not add facts, rulings, or interpretations not present in the provided text.
-2. Do not use your own knowledge about Islam, the Quran, or Islamic scholarship.
-3. Write in clear, plain English.
-4. Do not generate the citation line — it will be added automatically.
-5. If the provided text is too short or unclear to analyze, respond with exactly: "The provided text is insufficient to summarize."
-6. Do not begin with "This text says" or "The commentary states" — begin directly with "SUMMARY".`
+1. Use ONLY the provided commentary text. Do not add facts, rulings, names, dates, hadith, or interpretations that are not in the provided text.
+2. Do not use your own knowledge of Islam, the Quran, Arabic, or Islamic scholarship — even if you are confident it is correct.
+3. Attribute disputed claims to the source that made them. If you cannot tell which source said something, state it plainly without attribution rather than guessing.
+4. If sources conflict, present both views. Never pick a "correct" one, issue a ruling, or tell the reader what to believe or do.
+5. Write in clear, plain English. Keep the whole response concise enough to read at a glance.
+6. Do not generate the citation line — it will be added automatically.
+7. If the provided text is too short or unclear to analyze, respond with exactly: "The provided text is insufficient to summarize."
+8. Begin your response directly with the first applicable section heading. Do not write a preamble such as "This text says" or "The commentary states."`
 
 export interface TafsirEntry {
   text: string
@@ -34,29 +50,46 @@ export interface TafsirEntry {
   language: 'ar' | 'en'
 }
 
+// Session-level cache: persists for the lifetime of the page, cleared on refresh.
+// Keyed by "surah:ayah" → { summary, citation }.
+const _cache = new Map<string, { summary: string; citation: string }>()
+
 export interface SummarizeControls {
   state: SummarizeState
   citation: string
   summarize: (entries: TafsirEntry[], surah: number, ayah: number) => void
+  restore: (surah: number, ayah: number) => boolean
 }
 
 export function useSummarize(): SummarizeControls {
   const [state, setState] = useState<SummarizeState>({ status: 'idle' })
   const [citation, setCitation] = useState('')
-  const abortRef = useRef(false)
+  const abortRef = useRef(false) // true on unmount → aborts any in-flight run
+  const genRef = useRef(0)       // incremented each call → superseded runs bail early
 
   useEffect(() => {
     return () => { abortRef.current = true }
   }, [])
 
+  function restore(surah: number, ayah: number): boolean {
+    const cached = _cache.get(`${surah}:${ayah}`)
+    if (!cached) return false
+    setState({ status: 'done', summary: cached.summary })
+    setCitation(cached.citation)
+    return true
+  }
+
   function summarize(entries: TafsirEntry[], surah: number, ayah: number) {
+    const myGen = ++genRef.current
     abortRef.current = false
     setState({ status: 'downloading', progress: 0 })
 
-    setCitation(buildCitation(entries.map(e => e.tafsirKey), surah, ayah))
+    const theCitation = buildCitation(entries.map(e => e.tafsirKey), surah, ayah)
+    setCitation(theCitation)
 
+    const cacheKey = `${surah}:${ayah}`
     const unsubscribe = subscribeProgress(pct => {
-      if (!abortRef.current) {
+      if (genRef.current === myGen && !abortRef.current) {
         setState({ status: 'downloading', progress: pct })
       }
     })
@@ -85,10 +118,12 @@ export function useSummarize(): SummarizeControls {
       })
       .join('\n\n---\n\n')
 
+    const isActive = () => genRef.current === myGen && !abortRef.current
+
     getEngine()
       .then(async engine => {
         unsubscribe()
-        if (abortRef.current) return
+        if (!isActive()) return
         setState({ status: 'generating', partial: '' })
 
         // AUDIT: Anti-hallucination data-path verification
@@ -111,22 +146,23 @@ export function useSummarize(): SummarizeControls {
 
         let accumulated = ''
         for await (const chunk of stream) {
-          if (abortRef.current) break
+          if (!isActive()) break
           const delta = chunk.choices[0]?.delta?.content ?? ''
           accumulated += delta
           setState({ status: 'generating', partial: accumulated })
         }
-        if (!abortRef.current) {
+        if (isActive()) {
           setState({ status: 'done', summary: accumulated })
+          _cache.set(cacheKey, { summary: accumulated, citation: theCitation })
         }
       })
       .catch(err => {
         unsubscribe()
-        if (!abortRef.current) {
+        if (isActive()) {
           setState({ status: 'error', message: err instanceof Error ? err.message : String(err) })
         }
       })
   }
 
-  return { state, citation, summarize }
+  return { state, citation, summarize, restore }
 }

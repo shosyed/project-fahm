@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useSummarize } from '../ai/index.ts'
 import type { TafsirEntry } from '../ai/index.ts'
 import type { AyahRecord } from '../db/index.ts'
@@ -21,7 +22,7 @@ function stripHtml(raw: string): string {
 }
 
 export function TafsirSection({ tafsirs, surah, ayah }: Props) {
-  const { state, citation, summarize } = useSummarize()
+  const { state, citation, summarize, restore } = useSummarize()
   const isActive = state.status !== 'idle'
 
   // Build entries for the LLM — Arabic original first, then English translation for each pair
@@ -30,6 +31,21 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
     if (tafsirs[arKey]) entries.push({ text: stripHtml(tafsirs[arKey]!), tafsirKey: arKey, language: 'ar' })
     if (tafsirs[enKey]) entries.push({ text: stripHtml(tafsirs[enKey]!), tafsirKey: enKey, language: 'en' })
   }
+
+  // On every ayah open: restore from session cache if available, otherwise run fresh.
+  // tafsirs/summarize/restore change in lock-step with surah/ayah — safe to omit from deps.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (restore(surah, ayah)) return
+    const autoEntries: TafsirEntry[] = []
+    for (const { arKey, enKey } of TAFSIR_PAIRS) {
+      if (tafsirs[arKey]) autoEntries.push({ text: stripHtml(tafsirs[arKey]!), tafsirKey: arKey, language: 'ar' })
+      if (tafsirs[enKey]) autoEntries.push({ text: stripHtml(tafsirs[enKey]!), tafsirKey: enKey, language: 'en' })
+    }
+    if (autoEntries.length > 0) {
+      summarize(autoEntries, surah, ayah)
+    }
+  }, [surah, ayah])
 
   function handleSummarize() {
     summarize(entries, surah, ayah)
@@ -51,9 +67,9 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
             {state.status === 'done'        && '✦ Re-analyze'}
             {state.status === 'error'       && 'Retry'}
           </button>
-          {state.status === 'idle' && (
+          {state.status === 'downloading' && (
             <span className={styles.aiHint}>
-              Summarizes all sources · compares Arabic original with English · runs locally · first use ~2 GB download
+              First use downloads ~2 GB model · runs locally in your browser · cached after
             </span>
           )}
         </div>
@@ -72,7 +88,7 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
               {(state.status === 'generating' ? state.partial : state.summary)
                 .split('\n')
                 .map((line, i) => {
-                  if (line === 'SUMMARY' || line === 'TRANSLATION NOTES') {
+                  if (['SUMMARY', 'KEY TERMS', 'CONTEXT', 'TRANSLATION NOTES', 'POINTS OF DIFFERENCE'].includes(line)) {
                     return <p key={i} className={styles.summarySection}>{line}</p>
                   }
                   return line ? <p key={i}>{line}</p> : <br key={i} />
