@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useSummarize, buildCitation } from '../ai/index.ts'
 import styles from './TafsirBlock.module.css'
 
@@ -22,10 +23,13 @@ interface Props {
 
 export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
   const { state, summarize } = useSummarize()
+  const [expanded, setExpanded] = useState(false)
 
   const plainText = stripHtml(text)
   const citation = buildCitation(tafsirKey, surah, ayah)
   const isActive = state.status !== 'idle'
+  // Auto-expand when summary is active so user can see the source alongside the summary
+  const showFull = expanded || isActive
 
   function handleClick() {
     summarize(plainText, tafsirKey, surah, ayah)
@@ -80,12 +84,22 @@ export function TafsirBlock({ tafsirKey, text, surah, ayah }: Props) {
 
         {/* Verbatim Arabic tafsir text — always shown; highlighted when summary is active */}
         <p
-          className={`${styles.arabicText}${isActive ? ` ${styles.verbatimHighlight}` : ''}`}
+          className={[
+            styles.arabicText,
+            isActive ? styles.verbatimHighlight : '',
+            !showFull ? styles.arabicTextCollapsed : '',
+          ].filter(Boolean).join(' ')}
           dir="rtl"
           lang="ar"
         >
           {plainText}
         </p>
+        <button
+          className={styles.readMoreBtn}
+          onClick={() => setExpanded(e => !e)}
+        >
+          {showFull ? 'Show less' : 'Read more'}
+        </button>
 
       </div>
     </details>
