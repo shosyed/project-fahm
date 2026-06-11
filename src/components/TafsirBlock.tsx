@@ -8,13 +8,15 @@ const LABELS: Record<string, string> = {
 
 interface Props {
   tafsirKey: string
-  text: string       // HTML-stripped, ready to render
-  isActive?: boolean // true when a summary is being generated/shown
+  arabicText: string    // Arabic original — always present
+  englishText?: string  // English translation — shown as primary when available
+  isActive?: boolean
 }
 
-export function TafsirBlock({ tafsirKey, text, isActive = false }: Props) {
+export function TafsirBlock({ tafsirKey, arabicText, englishText, isActive = false }: Props) {
   const [expanded, setExpanded] = useState(false)
   const showFull = expanded || isActive
+  const hasEnglish = Boolean(englishText)
 
   return (
     <details className={styles.details} open>
@@ -22,23 +24,49 @@ export function TafsirBlock({ tafsirKey, text, isActive = false }: Props) {
         {LABELS[tafsirKey] ?? tafsirKey}
       </summary>
       <div className={styles.body}>
-        <p
-          className={[
-            styles.arabicText,
-            isActive ? styles.verbatimHighlight : '',
-            !showFull ? styles.arabicTextCollapsed : '',
-          ].filter(Boolean).join(' ')}
-          dir="rtl"
-          lang="ar"
-        >
-          {text}
-        </p>
-        <button
-          className={styles.readMoreBtn}
-          onClick={() => setExpanded(e => !e)}
-        >
-          {showFull ? 'Show less' : 'Read more'}
-        </button>
+        {hasEnglish ? (
+          <>
+            <p
+              className={[
+                styles.englishText,
+                isActive ? styles.verbatimHighlight : '',
+                !showFull ? styles.textCollapsed : '',
+              ].filter(Boolean).join(' ')}
+            >
+              {englishText}
+            </p>
+            <button
+              className={styles.readMoreBtn}
+              onClick={() => setExpanded(e => !e)}
+            >
+              {showFull ? 'Show less' : 'Read more'}
+            </button>
+            <details className={styles.arabicToggle}>
+              <summary className={styles.arabicToggleSummary}>View Arabic original</summary>
+              <p className={styles.arabicText} dir="rtl" lang="ar">{arabicText}</p>
+            </details>
+          </>
+        ) : (
+          <>
+            <p
+              className={[
+                styles.arabicText,
+                isActive ? styles.verbatimHighlight : '',
+                !showFull ? styles.textCollapsed : '',
+              ].filter(Boolean).join(' ')}
+              dir="rtl"
+              lang="ar"
+            >
+              {arabicText}
+            </p>
+            <button
+              className={styles.readMoreBtn}
+              onClick={() => setExpanded(e => !e)}
+            >
+              {showFull ? 'Show less' : 'Read more'}
+            </button>
+          </>
+        )}
       </div>
     </details>
   )

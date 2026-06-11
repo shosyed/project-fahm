@@ -44,6 +44,11 @@ QURANCOM_IBNKATHIR_CHAPTER_URL = (
     "https://api.quran.com/api/v4/tafsirs/14/by_chapter/{chapter}?per_page=500"
 )
 
+# Quran.com API for Ibn Kathir English abridged (resource id=169, slug=en-tafisr-ibn-kathir)
+QURANCOM_IBNKATHIR_EN_CHAPTER_URL = (
+    "https://api.quran.com/api/v4/tafsirs/169/by_chapter/{chapter}?per_page=500"
+)
+
 TODAY = date.today().isoformat()
 
 
@@ -245,42 +250,31 @@ def load_jalalayn(conn: sqlite3.Connection, limit: int | None) -> int:
     return count
 
 
-def load_ibnkathir(conn: sqlite3.Connection, limit: int | None) -> int:
-    """Fetch Tafsir Ibn Kathir (Arabic) from Quran.com API and insert into tafsirs table."""
-    print("\n[5/5] Tafsir Ibn Kathir (Quran.com ar-tafsir-ibn-kathir, id=14)")
-
+def _load_qurancom_tafsir(conn: sqlite3.Connection, tafsir_id: int, key: str,
+                          url_template: str, slug: str, limit: int | None) -> int:
+    """Generic loader for any Quran.com chapter-by-chapter tafsir endpoint."""
     num_chapters = limit if limit is not None else 114
     inserted = 0
 
     with conn:
-        for chapter in tqdm(range(1, num_chapters + 1), desc="  Fetching Ibn Kathir chapters", unit="surah"):
-            url = QURANCOM_IBNKATHIR_CHAPTER_URL.format(chapter=chapter)
+        for chapter in tqdm(range(1, num_chapters + 1), desc=f"  Fetching {key}", unit="surah"):
+            url = url_template.format(chapter=chapter)
             try:
                 resp = requests.get(url, timeout=60)
                 resp.raise_for_status()
             except requests.RequestException as exc:
-                print(
-                    f"\nERROR: Failed to fetch Ibn Kathir chapter {chapter}: {exc}",
-                    file=sys.stderr,
-                )
+                print(f"\nERROR: Failed to fetch {key} chapter {chapter}: {exc}", file=sys.stderr)
                 sys.exit(1)
 
             try:
                 data = resp.json()
             except ValueError as exc:
-                print(
-                    f"\nERROR: Invalid JSON for Ibn Kathir chapter {chapter}: {exc}",
-                    file=sys.stderr,
-                )
+                print(f"\nERROR: Invalid JSON for {key} chapter {chapter}: {exc}", file=sys.stderr)
                 sys.exit(1)
 
             tafsirs = data.get("tafsirs", [])
             if not tafsirs:
-                # Some short surahs may have combined entries; warn but continue
-                print(
-                    f"\nWARNING: No Ibn Kathir entries for chapter {chapter}",
-                    file=sys.stderr,
-                )
+                print(f"\nWARNING: No {key} entries for chapter {chapter}", file=sys.stderr)
                 continue
 
             for entry in tafsirs:
@@ -290,32 +284,44 @@ def load_ibnkathir(conn: sqlite3.Connection, limit: int | None) -> int:
                     surah_num = int(s_str)
                     ayah_num = int(a_str)
                 except (ValueError, AttributeError):
-                    print(
-                        f"\nWARNING: Malformed verse_key {verse_key!r}",
-                        file=sys.stderr,
-                    )
+                    print(f"\nWARNING: Malformed verse_key {verse_key!r}", file=sys.stderr)
                     continue
 
                 text = entry.get("text", "")
                 conn.execute(
                     "INSERT OR REPLACE INTO tafsirs (surah, ayah, key, text) VALUES (?, ?, ?, ?)",
-                    (surah_num, ayah_num, "ibnkathir", text),
+                    (surah_num, ayah_num, key, text),
                 )
                 inserted += 1
 
-        upsert_metadata(conn, "tafsir_ibnkathir_source", "Quran.com ar-tafsir-ibn-kathir (resource id=14)")
-        upsert_metadata(
-            conn,
-            "tafsir_ibnkathir_url",
-            "https://api.quran.com/api/v4/tafsirs/14/by_chapter/{chapter}",
-        )
-        upsert_metadata(conn, "tafsir_ibnkathir_retrieved", TODAY)
+        upsert_metadata(conn, f"tafsir_{key}_source", f"Quran.com {slug} (resource id={tafsir_id})")
+        upsert_metadata(conn, f"tafsir_{key}_url", url_template)
+        upsert_metadata(conn, f"tafsir_{key}_retrieved", TODAY)
 
     count = conn.execute(
-        "SELECT COUNT(*) FROM tafsirs WHERE key='ibnkathir'"
+        "SELECT COUNT(*) FROM tafsirs WHERE key=?", (key,)
     ).fetchone()[0]
-    print(f"  Rows for ibnkathir: {count}")
+    print(f"  Rows for {key}: {count}")
     return count
+
+
+def load_ibnkathir(conn: sqlite3.Connection, limit: int | None) -> int:
+    """Fetch Tafsir Ibn Kathir (Arabic) from Quran.com API and insert into tafsirs table."""
+    print("\n[5/6] Tafsir Ibn Kathir (Quran.com ar-tafsir-ibn-kathir, id=14)")
+
+    return _load_qurancom_tafsir(
+        conn, 14, "ibnkathir", QURANCOM_IBNKATHIR_CHAPTER_URL,
+        "ar-tafsir-ibn-kathir", limit,
+    )
+
+
+def load_ibnkathir_en(conn: sqlite3.Connection, limit: int | None) -> int:
+    """Fetch Tafsir Ibn Kathir (English abridged) from Quran.com API."""
+    print("\n[6/6] Tafsir Ibn Kathir English (Quran.com en-tafisr-ibn-kathir, id=169)")
+    return _load_qurancom_tafsir(
+        conn, 169, "ibnkathir_en", QURANCOM_IBNKATHIR_EN_CHAPTER_URL,
+        "en-tafisr-ibn-kathir", limit,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -369,8 +375,11 @@ def main() -> None:
     # 4. al-Jalalayn
     load_jalalayn(conn, args.limit)
 
-    # 5. Ibn Kathir
+    # 5. Ibn Kathir (Arabic)
     load_ibnkathir(conn, args.limit)
+
+    # 6. Ibn Kathir (English abridged)
+    load_ibnkathir_en(conn, args.limit)
 
     # Summary
     print("\n" + "=" * 50)
@@ -391,11 +400,15 @@ def main() -> None:
     tafsirs_ik = conn.execute(
         "SELECT COUNT(*) FROM tafsirs WHERE key='ibnkathir'"
     ).fetchone()[0]
+    tafsirs_ik_en = conn.execute(
+        "SELECT COUNT(*) FROM tafsirs WHERE key='ibnkathir_en'"
+    ).fetchone()[0]
 
-    print(f"    translations[yusufali]  = {translations_ya}")
-    print(f"    translations[pickthall] = {translations_pt}")
-    print(f"    tafsirs[jalalayn]       = {tafsirs_jl}")
-    print(f"    tafsirs[ibnkathir]      = {tafsirs_ik}")
+    print(f"    translations[yusufali]    = {translations_ya}")
+    print(f"    translations[pickthall]   = {translations_pt}")
+    print(f"    tafsirs[jalalayn]         = {tafsirs_jl}")
+    print(f"    tafsirs[ibnkathir]        = {tafsirs_ik}")
+    print(f"    tafsirs[ibnkathir_en]     = {tafsirs_ik_en}")
 
     conn.close()
     print(f"\nDatabase written to: {output_path}")

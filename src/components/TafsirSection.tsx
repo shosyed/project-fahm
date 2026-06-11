@@ -1,4 +1,5 @@
 import { useSummarize } from '../ai/index.ts'
+import type { TafsirEntry } from '../ai/index.ts'
 import type { AyahRecord } from '../db/index.ts'
 import { TafsirBlock } from './TafsirBlock.tsx'
 import styles from './TafsirSection.module.css'
@@ -9,7 +10,10 @@ interface Props {
   ayah: number
 }
 
-const TAFSIR_ORDER = ['jalalayn', 'ibnkathir'] as const
+const TAFSIR_PAIRS = [
+  { arKey: 'jalalayn',  enKey: 'jalalayn_en',  label: 'Tafsir al-Jalalayn' },
+  { arKey: 'ibnkathir', enKey: 'ibnkathir_en', label: 'Tafsir Ibn Kathir'  },
+] as const
 
 function stripHtml(raw: string): string {
   const doc = new DOMParser().parseFromString(raw, 'text/html')
@@ -20,9 +24,12 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
   const { state, citation, summarize } = useSummarize()
   const isActive = state.status !== 'idle'
 
-  const entries = TAFSIR_ORDER
-    .filter(key => tafsirs[key])
-    .map(key => ({ text: stripHtml(tafsirs[key]!), tafsirKey: key }))
+  // Build entries for the LLM — Arabic original first, then English translation for each pair
+  const entries: TafsirEntry[] = []
+  for (const { arKey, enKey } of TAFSIR_PAIRS) {
+    if (tafsirs[arKey]) entries.push({ text: stripHtml(tafsirs[arKey]!), tafsirKey: arKey, language: 'ar' })
+    if (tafsirs[enKey]) entries.push({ text: stripHtml(tafsirs[enKey]!), tafsirKey: enKey, language: 'en' })
+  }
 
   function handleSummarize() {
     summarize(entries, surah, ayah)
@@ -38,14 +45,16 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
             onClick={handleSummarize}
             disabled={state.status === 'downloading' || state.status === 'generating'}
           >
-            {state.status === 'idle' && '✦ Summarize both (AI)'}
+            {state.status === 'idle'        && '✦ Analyze & compare (AI)'}
             {state.status === 'downloading' && `Downloading model… ${state.progress}%`}
-            {state.status === 'generating' && 'Generating…'}
-            {state.status === 'done' && '✦ Re-summarize'}
-            {state.status === 'error' && 'Retry'}
+            {state.status === 'generating'  && 'Analyzing…'}
+            {state.status === 'done'        && '✦ Re-analyze'}
+            {state.status === 'error'       && 'Retry'}
           </button>
           {state.status === 'idle' && (
-            <span className={styles.aiHint}>Runs locally · first use ~2 GB download</span>
+            <span className={styles.aiHint}>
+              Summarizes all sources · compares Arabic original with English · runs locally · first use ~2 GB download
+            </span>
           )}
         </div>
       </div>
@@ -59,9 +68,17 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
       {state.status !== 'idle' && (
         <div className={styles.summaryBox}>
           {(state.status === 'generating' || state.status === 'done') && (
-            <p className={styles.summaryText}>
-              {state.status === 'generating' ? state.partial : state.summary}
-            </p>
+            <div className={styles.summaryText}>
+              {(state.status === 'generating' ? state.partial : state.summary)
+                .split('\n')
+                .map((line, i) => {
+                  if (line === 'SUMMARY' || line === 'TRANSLATION NOTES') {
+                    return <p key={i} className={styles.summarySection}>{line}</p>
+                  }
+                  return line ? <p key={i}>{line}</p> : <br key={i} />
+                })
+              }
+            </div>
           )}
           {state.status === 'error' && (
             <p className={styles.errorText}>{state.message}</p>
@@ -70,14 +87,20 @@ export function TafsirSection({ tafsirs, surah, ayah }: Props) {
         </div>
       )}
 
-      {entries.map(e => (
-        <TafsirBlock
-          key={e.tafsirKey}
-          tafsirKey={e.tafsirKey}
-          text={e.text}
-          isActive={isActive}
-        />
-      ))}
+      {TAFSIR_PAIRS.map(({ arKey, enKey }) => {
+        const arRaw = tafsirs[arKey]
+        const enRaw = tafsirs[enKey]
+        if (!arRaw && !enRaw) return null
+        return (
+          <TafsirBlock
+            key={arKey}
+            tafsirKey={arKey}
+            arabicText={arRaw ? stripHtml(arRaw) : ''}
+            englishText={enRaw ? stripHtml(enRaw) : undefined}
+            isActive={isActive}
+          />
+        )
+      })}
     </section>
   )
 }
