@@ -63,7 +63,7 @@ export function ReaderPage() {
           className={styles.rightPanel}
           style={{ top: navHeight, maxHeight: `calc(100vh - ${navHeight}px)` }}
         >
-          <RelatedVersesPanel surah={surah} ayah={ayah} />
+          <RelatedVersesPanel surah={surah} ayah={ayah} onNavigate={onNavigate} />
         </div>
       </div>
     </div>

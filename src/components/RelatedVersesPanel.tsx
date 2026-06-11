@@ -18,6 +18,7 @@ function typeLabel(type: string): string {
 interface Props {
   surah: number
   ayah: number
+  onNavigate: (surah: number, ayah: number) => void
 }
 
 interface SelectedVerse {
@@ -25,7 +26,7 @@ interface SelectedVerse {
   ayah: number
 }
 
-export function RelatedVersesPanel({ surah, ayah }: Props) {
+export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
   const [similar, setSimilar] = useState<SimilarAyah[] | null>(null)
   const [topics, setTopics] = useState<TopicsAndThemes | null>(null)
   const [loading, setLoading] = useState(true)
@@ -65,6 +66,7 @@ export function RelatedVersesPanel({ surah, ayah }: Props) {
         surah={selected.surah}
         ayah={selected.ayah}
         onBack={() => setSelected(null)}
+        onNavigate={onNavigate}
       />
     )
   }

@@ -54,6 +54,12 @@ export interface TafsirEntry {
 // Keyed by "surah:ayah" → { summary, citation }.
 const _cache = new Map<string, { summary: string; citation: string }>()
 
+// Module-level FIFO queue: only one LLM generation runs at a time across all
+// TafsirSection instances. Each summarize() call chains its work onto this promise.
+// When the main reader and the side pane both need analysis, their jobs run in order
+// rather than concurrently (WebLLM can't handle parallel completions.create calls).
+let _jobChain: Promise<void> = Promise.resolve()
+
 export interface SummarizeControls {
   state: SummarizeState
   citation: string
@@ -64,8 +70,9 @@ export interface SummarizeControls {
 export function useSummarize(): SummarizeControls {
   const [state, setState] = useState<SummarizeState>({ status: 'idle' })
   const [citation, setCitation] = useState('')
-  const abortRef = useRef(false) // true on unmount → aborts any in-flight run
-  const genRef = useRef(0)       // incremented each call → superseded runs bail early
+  const abortRef = useRef(false)   // true on unmount → queued job skips on start
+  const localGenRef = useRef(0)    // incremented each summarize() call; queued job
+                                   // bails if a newer call from this instance arrived
 
   useEffect(() => {
     return () => { abortRef.current = true }
@@ -80,19 +87,16 @@ export function useSummarize(): SummarizeControls {
   }
 
   function summarize(entries: TafsirEntry[], surah: number, ayah: number) {
-    const myGen = ++genRef.current
+    const myLocalGen = ++localGenRef.current
     abortRef.current = false
+
+    // Show activity immediately so the UI doesn't appear stuck while queued.
     setState({ status: 'downloading', progress: 0 })
 
     const theCitation = buildCitation(entries.map(e => e.tafsirKey), surah, ayah)
     setCitation(theCitation)
 
     const cacheKey = `${surah}:${ayah}`
-    const unsubscribe = subscribeProgress(pct => {
-      if (genRef.current === myGen && !abortRef.current) {
-        setState({ status: 'downloading', progress: pct })
-      }
-    })
 
     // Truncate each entry to fit within the model's context window.
     // Arabic tokenizes at ~2× density vs English, so Arabic entries get a tighter budget.
@@ -118,49 +122,67 @@ export function useSummarize(): SummarizeControls {
       })
       .join('\n\n---\n\n')
 
-    const isActive = () => genRef.current === myGen && !abortRef.current
+    // isActive: true only if this specific call is still the latest from this
+    // component instance AND the component hasn't unmounted.
+    const isActive = () => localGenRef.current === myLocalGen && !abortRef.current
 
-    getEngine()
-      .then(async engine => {
-        unsubscribe()
+    // Chain onto the global queue. The job won't start until all earlier jobs finish.
+    _jobChain = _jobChain
+      .then(async () => {
+        // By the time this job runs, a newer call from the same component may have
+        // arrived (e.g. user navigated to a different verse) or the component may have
+        // unmounted. Either way, skip this job entirely.
         if (!isActive()) return
-        setState({ status: 'generating', partial: '' })
 
-        // AUDIT: Anti-hallucination data-path verification
-        // Passed to LLM:
-        //   - SYSTEM_PROMPT (static constant)
-        //   - combinedText: verbatim tafsir text(s) — Arabic originals and/or English
-        //     translations — labeled by source name and language
-        // NOT passed to LLM:
-        //   - AyahRecord.arabic    (rendered verbatim by ArabicDisplay, never touches LLM)
-        //   - AyahRecord.translations (rendered verbatim by TranslationList, never touches LLM)
-        //   - The citation string (generated deterministically by buildCitation())
-        const stream = await engine.chat.completions.create({
-          messages: [
-            { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: `Analyze the following tafsir commentary:\n\n"""\n${combinedText}\n"""` },
-          ],
-          stream: true,
-          temperature: 0,
+        // Subscribe to model-download progress only while this job is actually running.
+        const unsubscribe = subscribeProgress(pct => {
+          if (isActive()) setState({ status: 'downloading', progress: pct })
         })
 
-        let accumulated = ''
-        for await (const chunk of stream) {
-          if (!isActive()) break
-          const delta = chunk.choices[0]?.delta?.content ?? ''
-          accumulated += delta
-          setState({ status: 'generating', partial: accumulated })
-        }
-        if (isActive()) {
-          setState({ status: 'done', summary: accumulated })
-          _cache.set(cacheKey, { summary: accumulated, citation: theCitation })
+        try {
+          const engine = await getEngine()
+          unsubscribe()
+          if (!isActive()) return
+          setState({ status: 'generating', partial: '' })
+
+          // AUDIT: Anti-hallucination data-path verification
+          // Passed to LLM:
+          //   - SYSTEM_PROMPT (static constant)
+          //   - combinedText: verbatim tafsir text(s) — Arabic originals and/or English
+          //     translations — labeled by source name and language
+          // NOT passed to LLM:
+          //   - AyahRecord.arabic    (rendered verbatim by ArabicDisplay, never touches LLM)
+          //   - AyahRecord.translations (rendered verbatim by TranslationList, never touches LLM)
+          //   - The citation string (generated deterministically by buildCitation())
+          const stream = await engine.chat.completions.create({
+            messages: [
+              { role: 'system', content: SYSTEM_PROMPT },
+              { role: 'user', content: `Analyze the following tafsir commentary:\n\n"""\n${combinedText}\n"""` },
+            ],
+            stream: true,
+            temperature: 0,
+          })
+
+          let accumulated = ''
+          for await (const chunk of stream) {
+            if (!isActive()) break
+            const delta = chunk.choices[0]?.delta?.content ?? ''
+            accumulated += delta
+            setState({ status: 'generating', partial: accumulated })
+          }
+          if (isActive()) {
+            setState({ status: 'done', summary: accumulated })
+            _cache.set(cacheKey, { summary: accumulated, citation: theCitation })
+          }
+        } catch (err) {
+          unsubscribe()
+          if (isActive()) {
+            setState({ status: 'error', message: err instanceof Error ? err.message : String(err) })
+          }
         }
       })
-      .catch(err => {
-        unsubscribe()
-        if (isActive()) {
-          setState({ status: 'error', message: err instanceof Error ? err.message : String(err) })
-        }
+      .catch(() => {
+        // Swallow unhandled rejections so the chain never breaks.
       })
   }
 

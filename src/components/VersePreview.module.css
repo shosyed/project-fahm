@@ -29,6 +29,24 @@
   color: #374151;
 }
 
+.goToBtn {
+  padding: 0.25rem 0.6rem;
+  font-size: 0.8125rem;
+  color: #1d4ed8;
+  background: none;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: auto;
+}
+
+.goToBtn:hover {
+  background: #eff6ff;
+  border-color: #93c5fd;
+}
+
 .ref {
   font-size: 0.9375rem;
   font-weight: 700;

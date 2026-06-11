@@ -10,9 +10,10 @@ interface Props {
   surah: number
   ayah: number
   onBack: () => void
+  onNavigate?: (surah: number, ayah: number) => void
 }
 
-export function VersePreview({ surah, ayah, onBack }: Props) {
+export function VersePreview({ surah, ayah, onBack, onNavigate }: Props) {
   const [record, setRecord] = useState<AyahRecord | null>(null)
   const surahMeta = getSurahMeta(surah)
 
@@ -27,6 +28,14 @@ export function VersePreview({ surah, ayah, onBack }: Props) {
         <button className={styles.backBtn} onClick={onBack}>← Back</button>
         <span className={styles.ref}>{surah}:{ayah}</span>
         <span className={styles.surahName}>{surahMeta.englishName}</span>
+        {onNavigate && (
+          <button
+            className={styles.goToBtn}
+            onClick={() => { onNavigate(surah, ayah); onBack() }}
+          >
+            Go to Ayah →
+          </button>
+        )}
       </div>
       {record ? (
         <>
