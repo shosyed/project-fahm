@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { getEngine, subscribeProgress } from './webllm.ts'
+import { buildCitation, CITATION_NAMES } from './citation.ts'
 
 export type SummarizeState =
   | { status: 'idle' }
@@ -19,28 +20,43 @@ Rules you must follow without exception:
 6. Do not begin your response with "This text says" or "The commentary states" — begin directly with the substance.
 7. Keep the summary to 3–5 sentences.`
 
+export interface TafsirEntry {
+  text: string
+  tafsirKey: string
+}
+
 export interface SummarizeControls {
   state: SummarizeState
-  summarize: (text: string, tafsirKey: string, surah: number, ayah: number) => void
+  citation: string
+  summarize: (entries: TafsirEntry[], surah: number, ayah: number) => void
 }
 
 export function useSummarize(): SummarizeControls {
   const [state, setState] = useState<SummarizeState>({ status: 'idle' })
+  const [citation, setCitation] = useState('')
   const abortRef = useRef(false)
 
   useEffect(() => {
     return () => { abortRef.current = true }
   }, [])
 
-  function summarize(text: string, _tafsirKey: string, _surah: number, _ayah: number) {
+  function summarize(entries: TafsirEntry[], surah: number, ayah: number) {
     abortRef.current = false
     setState({ status: 'downloading', progress: 0 })
+
+    const keys = entries.map(e => e.tafsirKey)
+    setCitation(buildCitation(keys, surah, ayah))
 
     const unsubscribe = subscribeProgress(pct => {
       if (!abortRef.current) {
         setState({ status: 'downloading', progress: pct })
       }
     })
+
+    // Build combined text with labels for each tafsir
+    const combinedText = entries
+      .map(e => `[${CITATION_NAMES[e.tafsirKey] ?? e.tafsirKey}]\n${e.text}`)
+      .join('\n\n---\n\n')
 
     getEngine()
       .then(async engine => {
@@ -51,18 +67,15 @@ export function useSummarize(): SummarizeControls {
         // AUDIT: Anti-hallucination data-path verification
         // The only data passed to the LLM is:
         //   - SYSTEM_PROMPT (static constant, see top of this file)
-        //   - `text`: the verbatim tafsir commentary string from AyahRecord.tafsirs[key]
+        //   - combinedText: verbatim tafsir text(s) from AyahRecord.tafsirs, labeled by source name
         // NOT passed to the LLM:
         //   - AyahRecord.arabic    (rendered verbatim by ArabicDisplay, never touches LLM)
         //   - AyahRecord.translations (rendered verbatim by TranslationList, never touches LLM)
-        //   - The citation string (generated deterministically by buildCitation() in src/ai/citation.ts)
-        // The user message template is: `Summarize the following tafsir commentary:\n\n"""\n${text}\n"""`
-        // systemPrompt.test.ts verifies SYSTEM_PROMPT contains anti-hallucination rules.
-        // citation.test.ts verifies the citation is code-generated, not LLM-generated.
+        //   - The citation string (generated deterministically by buildCitation())
         const stream = await engine.chat.completions.create({
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
-            { role: 'user', content: `Summarize the following tafsir commentary:\n\n"""\n${text}\n"""` },
+            { role: 'user', content: `Summarize the following tafsir commentary:\n\n"""\n${combinedText}\n"""` },
           ],
           stream: true,
           temperature: 0,
@@ -87,5 +100,5 @@ export function useSummarize(): SummarizeControls {
       })
   }
 
-  return { state, summarize }
+  return { state, citation, summarize }
 }

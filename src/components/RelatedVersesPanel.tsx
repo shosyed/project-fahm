@@ -3,6 +3,7 @@ import { getSimilarAyahs, getTopicsAndThemes } from '../db/index.ts'
 import type { SimilarAyah, TopicsAndThemes } from '../db/index.ts'
 import { TopicsThemesRow } from './TopicsThemesRow.tsx'
 import { SimilarAyahGroup } from './SimilarAyahGroup.tsx'
+import { VersePreview } from './VersePreview.tsx'
 import styles from './RelatedVersesPanel.module.css'
 
 const TYPE_LABELS: Record<string, string> = {
@@ -17,18 +18,24 @@ function typeLabel(type: string): string {
 interface Props {
   surah: number
   ayah: number
-  onNavigate: (surah: number, ayah: number) => void
 }
 
-export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
+interface SelectedVerse {
+  surah: number
+  ayah: number
+}
+
+export function RelatedVersesPanel({ surah, ayah }: Props) {
   const [similar, setSimilar] = useState<SimilarAyah[] | null>(null)
   const [topics, setTopics] = useState<TopicsAndThemes | null>(null)
   const [loading, setLoading] = useState(true)
+  const [selected, setSelected] = useState<SelectedVerse | null>(null)
 
   useEffect(() => {
     setLoading(true)
     setSimilar(null)
     setTopics(null)
+    setSelected(null)
     Promise.all([
       getSimilarAyahs(surah, ayah),
       getTopicsAndThemes(surah, ayah),
@@ -52,11 +59,19 @@ export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
 
   if (!hasTopics && !hasSimilar) return null
 
-  // Group similar ayahs: mutashabihat vs. everything else
+  if (selected) {
+    return (
+      <VersePreview
+        surah={selected.surah}
+        ayah={selected.ayah}
+        onBack={() => setSelected(null)}
+      />
+    )
+  }
+
   const mutashabihat = (similar ?? []).filter(s => s.type === 'mutashabihat')
   const others = (similar ?? []).filter(s => s.type !== 'mutashabihat')
 
-  // Group non-mutashabihat by type
   const groupedOthers = new Map<string, SimilarAyah[]>()
   for (const item of others) {
     const arr = groupedOthers.get(item.type) ?? []
@@ -65,7 +80,7 @@ export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
   }
 
   return (
-    <section className={styles.section}>
+    <div className={styles.panel}>
       <h3 className={styles.heading}>Related Verses</h3>
       {hasTopics && topics && (
         <TopicsThemesRow topics={topics.topics} themes={topics.themes} />
@@ -77,7 +92,7 @@ export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
               key={type}
               label={typeLabel(type)}
               items={items}
-              onNavigate={onNavigate}
+              onSelect={(s, a) => setSelected({ surah: s, ayah: a })}
               startOpen={true}
             />
           ))}
@@ -86,13 +101,13 @@ export function RelatedVersesPanel({ surah, ayah, onNavigate }: Props) {
               key="mutashabihat"
               label={typeLabel('mutashabihat')}
               items={mutashabihat}
-              onNavigate={onNavigate}
+              onSelect={(s, a) => setSelected({ surah: s, ayah: a })}
               startOpen={false}
               displayLimit={50}
             />
           )}
         </div>
       )}
-    </section>
+    </div>
   )
 }

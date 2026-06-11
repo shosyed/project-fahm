@@ -3,7 +3,8 @@ export const CITATION_NAMES: Record<string, string> = {
   ibnkathir: 'Tafsir Ibn Kathir',
 }
 
-export function buildCitation(tafsirKey: string, surah: number, ayah: number): string {
-  const name = CITATION_NAMES[tafsirKey] ?? tafsirKey
-  return `[Source: ${name}, Surah ${surah}:${ayah}]`
+export function buildCitation(tafsirKey: string | string[], surah: number, ayah: number): string {
+  const keys = typeof tafsirKey === 'string' ? [tafsirKey] : tafsirKey
+  const names = keys.map(k => CITATION_NAMES[k] ?? k).join(' & ')
+  return `[Source: ${names}, Surah ${surah}:${ayah}]`
 }

@@ -5,12 +5,12 @@ import type { SimilarAyah } from '../db/index.ts'
 interface Props {
   label: string
   items: SimilarAyah[]
-  onNavigate: (surah: number, ayah: number) => void
+  onSelect: (surah: number, ayah: number) => void
   startOpen?: boolean
   displayLimit?: number
 }
 
-export function SimilarAyahGroup({ label, items, onNavigate, startOpen = true, displayLimit }: Props) {
+export function SimilarAyahGroup({ label, items, onSelect, startOpen = true, displayLimit }: Props) {
   const displayed = displayLimit ? items.slice(0, displayLimit) : items
   const hidden = items.length - displayed.length
 
@@ -26,7 +26,7 @@ export function SimilarAyahGroup({ label, items, onNavigate, startOpen = true, d
             <li key={`${item.surah}:${item.ayah}`} className={styles.item}>
               <button
                 className={styles.refBtn}
-                onClick={() => onNavigate(item.surah, item.ayah)}
+                onClick={() => onSelect(item.surah, item.ayah)}
               >
                 <span className={styles.ref}>{item.surah}:{item.ayah}</span>
                 <span className={styles.surahName}>{surahName}</span>
