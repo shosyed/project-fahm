@@ -29,7 +29,7 @@
   transition: transform 0.15s;
 }
 
-details[open] .summary::after {
+details[open] > .summary::after {
   transform: rotate(90deg);
 }
 
@@ -43,6 +43,15 @@ details[open] .summary::after {
   background: #fafafa;
 }
 
+/* English translation — primary display */
+.englishText {
+  font-size: 1rem;
+  line-height: 1.8;
+  color: #1f2937;
+  margin: 0 0 0.5rem;
+}
+
+/* Arabic original — shown when no English exists */
 .arabicText {
   font-family: 'Amiri', serif;
   font-size: 1.25rem;
@@ -50,19 +59,25 @@ details[open] .summary::after {
   direction: rtl;
   text-align: right;
   color: #1f2937;
-  margin: 0 0 0.5rem;
+  margin: 0.75rem 0 0.5rem;
 }
 
-.arabicTextCollapsed {
+.textCollapsed {
   display: -webkit-box;
   -webkit-line-clamp: 10;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 
+.verbatimHighlight {
+  background: #fefce8;
+  border-radius: 4px;
+  padding: 0.5rem;
+}
+
 .readMoreBtn {
   display: block;
-  margin: 0 0 1rem auto;
+  margin: 0 0 0.75rem auto;
   padding: 0;
   font-size: 0.8125rem;
   color: #6b7280;
@@ -77,85 +92,32 @@ details[open] .summary::after {
   color: #374151;
 }
 
-.aiRow {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 0.75rem;
-  flex-wrap: wrap;
+/* Collapsible Arabic original toggle */
+.arabicToggle {
+  border-top: 1px solid #e5e7eb;
+  margin-top: 0.25rem;
 }
 
-.aiBtn {
-  padding: 0.4rem 1rem;
+.arabicToggleSummary {
+  padding: 0.5rem 0;
   font-size: 0.8125rem;
-  color: #1d4ed8;
-  background: #eff6ff;
-  border: 1px solid #bfdbfe;
-  border-radius: 6px;
+  color: #6b7280;
   cursor: pointer;
-  white-space: nowrap;
-  flex-shrink: 0;
+  list-style: none;
+  user-select: none;
 }
 
-.aiBtn:hover:not(:disabled) {
-  background: #dbeafe;
+.arabicToggleSummary::-webkit-details-marker {
+  display: none;
 }
 
-.aiBtn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+.arabicToggleSummary::before {
+  content: '▸ ';
+  font-size: 0.7rem;
+  transition: transform 0.15s;
+  display: inline-block;
 }
 
-.aiHint {
-  font-size: 0.75rem;
-  color: #9ca3af;
-}
-
-.verbatimHighlight {
-  background: #fefce8;
-  border-radius: 4px;
-  padding: 0.5rem;
-}
-
-.summaryBox {
-  margin-top: 1rem;
-  padding: 1rem;
-  background: #f0f9ff;
-  border: 1px solid #bae6fd;
-  border-radius: 6px;
-}
-
-.summaryText {
-  font-size: 0.9375rem;
-  line-height: 1.7;
-  color: #1e3a5f;
-  margin: 0 0 0.5rem;
-}
-
-.errorText {
-  font-size: 0.875rem;
-  color: #b91c1c;
-  margin: 0 0 0.5rem;
-}
-
-.citation {
-  font-size: 0.75rem;
-  color: #64748b;
-  margin: 0;
-  font-style: italic;
-}
-
-.progressBar {
-  height: 4px;
-  background: #e5e7eb;
-  border-radius: 2px;
-  overflow: hidden;
-  margin-top: 0.5rem;
-}
-
-.progressFill {
-  height: 100%;
-  background: #3b82f6;
-  border-radius: 2px;
-  transition: width 0.3s ease;
+details[open] > .arabicToggleSummary::before {
+  transform: rotate(90deg);
 }

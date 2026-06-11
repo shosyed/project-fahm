@@ -1,11 +1,9 @@
 .nav {
   display: flex;
   flex-direction: column;
-  gap: 0.75rem;
-  padding: 1rem;
-  background: #f9fafb;
-  border-radius: 8px;
-  border: 1px solid #e5e7eb;
+  gap: 0.5rem;
+  padding: 0.625rem 1.75rem;
+  background: #fff;
 }
 
 .surahRow,

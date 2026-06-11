@@ -1,11 +1,54 @@
 .page {
   display: flex;
   flex-direction: column;
-  gap: 2rem;
+  min-height: 100vh;
+}
+
+.stickyNav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: #fff;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.body {
+  display: flex;
+  align-items: flex-start;
+  flex: 1;
+}
+
+.mainColumn {
+  flex: 1;
+  min-width: 0;
+  padding: 1.5rem 1.75rem 3rem;
+}
+
+.rightPanel {
+  width: 360px;
+  flex-shrink: 0;
+  position: sticky;
+  overflow-y: auto;
+  border-left: 1px solid #e5e7eb;
+  background: #fafafa;
 }
 
 .ayahLoading {
-  text-align: center;
   color: #9ca3af;
   padding: 3rem 0;
+  font-size: 0.875rem;
+}
+
+@media (max-width: 860px) {
+  .body {
+    flex-direction: column;
+  }
+
+  .rightPanel {
+    width: 100%;
+    position: static;
+    max-height: none !important;
+    border-left: none;
+    border-top: 1px solid #e5e7eb;
+  }
 }

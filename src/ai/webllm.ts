@@ -14,13 +14,19 @@ export function subscribeProgress(cb: ProgressCallback): () => void {
 
 export function getEngine(): Promise<webllm.MLCEngine> {
   if (!_enginePromise) {
-    _enginePromise = webllm.CreateMLCEngine(MODEL_ID, {
-      initProgressCallback: (report) => {
-        const pct = Math.round((report.progress ?? 0) * 100)
-        _progressListeners.forEach(cb => cb(pct))
-        if (report.progress >= 1) _progressListeners.clear()
+    // chatOpts is the third arg; context_window_size overrides the MLC model default of 4096.
+    // Llama 3.2 3B supports 128K natively; 8192 fits long tafsirs without heavy memory cost.
+    _enginePromise = webllm.CreateMLCEngine(
+      MODEL_ID,
+      {
+        initProgressCallback: (report) => {
+          const pct = Math.round((report.progress ?? 0) * 100)
+          _progressListeners.forEach(cb => cb(pct))
+          if (report.progress >= 1) _progressListeners.clear()
+        },
       },
-    })
+      { context_window_size: 8192 },
+    )
   }
   return _enginePromise
 }
